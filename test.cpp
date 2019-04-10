@@ -18,12 +18,17 @@ struct bar {
 
 int main()
 {
-    delegate food(foo);
-    delegate bizd(biz);
+    bar b;
 
-    //static_assert(std::is_same_v<decltype(food), delegate<int>>);
-    //static_assert(std::is_same_v<decltype(bizd), delegate<int, int>>);
+    static_delegate food(foo);
+    static_delegate bizd(biz);
+    member_delegate memd(&bar::baz, &b);
+
+    static_assert(std::is_same_v<decltype(food), static_delegate<int>>);
+    static_assert(std::is_same_v<decltype(bizd), static_delegate<int, int>>);
+    static_assert(std::is_same_v<decltype(memd), member_delegate<int>>);
 
     printf("food() == %d\n", food());
     printf("bizd(10) == %d\n", bizd(10));
+    printf("memd() == %d\n", memd());
 }

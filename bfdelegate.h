@@ -31,50 +31,143 @@
 #include <type_traits>
 
 // -----------------------------------------------------------------------------
-// Delegate Definition
+// static delegate
 // -----------------------------------------------------------------------------
 
 template<class Ret, class... Args>
-struct delegate
+struct static_delegate
 {
 private:
-    using stub_t = Ret(*)(Args...);
-    stub_t m_stub;
-    void *m_obj;
-
-    template<size_t argc, class... A> struct call
-    {
-        constexpr decltype(auto) operator()(A&&... args) const
-        {
-            if constexpr (argc == 1) {
-                return std::invoke(m_stub, args...);
-            }
-
-            if constexpr (argc == 2) {
-                return std::invoke(m_stub, m_obj, args...);
-            }
-        }
-    };
+    using fn_t = Ret(*)(Args...);
+    fn_t m_fn;
 
 public:
     template<class R, class... A> explicit
-    delegate(R(*fn)(A...)) : m_stub{static_cast<stub_t>(fn)}
-    {}
-
-    template<class C, class R, class... A> explicit
-    delegate(R(C::*fn)(A...), C *obj) :
-        m_stub{static_cast<stub_t>(fn)},
-        m_obj{obj}
+    static_delegate(R(*fn)(A...)) : m_fn{static_cast<fn_t>(fn)}
     {}
 
     template<class... A> constexpr decltype(auto)
     operator()(A&&... args) const
     {
-        return std::invoke(m_stub, args...);
+        return std::invoke(m_fn, args...);
     }
 };
 
-template<class R, class... A> delegate(R(A...)) -> delegate<R, A...>;
+// Deduction guides
+//
+template<class R, class... A>
+static_delegate(R(A...)) -> static_delegate<R, A...>;
+
+// -----------------------------------------------------------------------------
+// member delegate
+// -----------------------------------------------------------------------------
+
+template<class... Args>
+struct strip
+{
+    using T = std::tuple<Args...>;
+};
+
+template<class Ret, class... Args>
+struct member_delegate
+{
+private:
+    static_assert(sizeof...(Args) >= 1);
+    typedef typename std::tuple_element<0, std::tuple<Args...>>::type C;
+    typedef Ret(C::*fn_t)();
+
+    C *m_pt;
+    fn_t m_fn;
+
+public:
+    template<class T, class R, class... A> explicit
+    member_delegate(R(T::*fn)(A...), T *obj) :
+        m_fn{static_cast<fn_t>(fn)},
+        m_pt{static_cast<C *>(obj)}
+    {}
+
+    template<class... A> constexpr decltype(auto)
+    operator()(A&&... args) const
+    {
+        return std::invoke((Ret(C::*)(decltype(args)...))m_fn, m_pt, args...);
+    }
+};
+
+template<class T, class R, class... A>
+member_delegate(R(T::*)(A...), T*) -> member_delegate<R, T, A...>;
+
+
+
+//template<class Ret, class... Args>
+//struct delegate
+//{
+//private:
+//    using stub_t = Ret(*)(Args...);
+//    stub_t m_stub;
+//    void *m_obj;
+//
+//    template<size_t n, class... A>
+//    invoke(A&&... args) const;
+//
+////    template<size_t n, class... A>
+////    constexpr decltype(auto) call(A&&... args) const
+////    {
+////        if constexpr (n == 1) {
+////            return std::invoke(m_stub, args...);
+////        } else if constexpr (n == 2) {
+////            return std::invoke(m_stub, m_obj, args...);
+////        }
+////    }
+//
+////    using call_pure = template<class... A> call<1, A...>;
+////    using call_member = template<class... A> call<2, A...>;
+//
+//    template<size_t n>
+//    struct call {
+//        operator()() {
+//            if constexpr (n == 1) {
+//                std::cout << "hello\n";
+//            }
+//            if constexpr (n == 2) {
+//                std::cout << "hola\n";
+//            }
+//        }
+//    };
+//
+//    struct call
+//
+//public:
+//    template<class R, class... A> explicit
+//    delegate(R(*fn)(A...)) : m_stub{static_cast<stub_t>(fn)}
+//    {
+//    }
+//
+////    template<class C, class R, class... A> explicit
+////    delegate(R(C::*fn)(A...), C *obj) :
+////        m_stub{static_cast<stub_t>(fn)},
+////        m_obj{obj}
+////    {}
+//
+//    template<class... A> constexpr decltype(auto)
+//    operator()(A&&... args) const
+//    {
+//        std::invoke(m_stub, args...);
+//    }
+//};
+//
+//template<class Ret, class... Args>
+//template<size_t n, class... A>
+//constexpr decltype(auto)
+//delegate<Ret, Args...>::invoke(A... args) const
+//{
+//    if constexpr (n == 1) {
+//        return std::invoke(m_stub, args...);
+//    } else if constexpr (n == 2) {
+//        return std::invoke(m_stub, m_obj, args...);
+//    }
+//}
+//
+//template<class R, class... A> delegate(R(A...)) -> delegate<R, A...>;
 
 // -----------------------------------------------------------------------------
 // Delegate Partial Specialization
